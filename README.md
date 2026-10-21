@@ -1,8 +1,3 @@
-
-**DEPRECATED**
-
-*Lua4RS is not actively developed anymore and may only receive maintanance updates. Please consider switching to the json REST api instead. You can find some examples here https://github.com/sehraf/python-retroshare*
-
 Lua4RS
 ======
 
@@ -11,7 +6,7 @@ A RetroShare plugin to automate and script things on RetroShare using the Lua la
 What is RetroShare?
 -------------------
 RetroShare is a secure decentralised communication platform.
-http://retroshare.sourceforge.net/
+[http://retroshare.sourceforge.net/](https://github.com/RetroShare/RetroShare)
 
 What is Lua4RS?
 ---------------
