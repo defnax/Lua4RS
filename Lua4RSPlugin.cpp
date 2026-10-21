@@ -56,7 +56,6 @@ Lua4RSPlugin::Lua4RSPlugin()
 {
     _icon = NULL;
     _mainpage = NULL;
-    _notify = NULL;
     _peers = NULL;
     _pluginHandler = NULL;
     _service = NULL;
@@ -64,6 +63,7 @@ Lua4RSPlugin::Lua4RSPlugin()
 
 void Lua4RSPlugin::stop()
 {
+    L4R::L4RConfig->getCore()->notify()->stop();
     L4R::L4RConfig->getCore()->shutDown();
     _service->fullstop();
 }
@@ -85,7 +85,6 @@ void Lua4RSPlugin::setInterfaces(RsPlugInInterfaces &interfaces)
 {
     // get stuff
     _peers = interfaces.mPeers;
-    _notify = interfaces.mNotify;
 
     if(_service == NULL)
     {
@@ -94,7 +93,7 @@ void Lua4RSPlugin::setInterfaces(RsPlugInInterfaces &interfaces)
     }
 
     // setup other stuff
-    _notify->registerNotifyClient(L4R::L4RConfig->getCore()->notify());
+    L4R::L4RConfig->getCore()->notify()->start();
 }
 
 void Lua4RSPlugin::getLibraries(std::list<RsLibraryInfo> &libraries)

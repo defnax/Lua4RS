@@ -19,13 +19,25 @@ This plugin let you interact with RetroShare. It exposes most RetroShare functio
 
 Requirements
 ------------
-* RetroShare v0.6 (use the 0.5 tag for RetroShare 0.5)
-* at least Lua 5.2
-  * This also includes developer packages and everything you need on your linux distro. 
-  * For Arch Linux install [lua](https://www.archlinux.org/packages/extra/x86_64/lua/). 
-  * For Ubuntu you need lua5.2_5.2.4-1ubuntu1_amd64.deb, liblua5.2-0_5.2.4-1ubuntu1_amd64.deb, liblua5.2-0-dbg_5.2.4-1ubuntu1_amd64.deb, liblua5.2-dev_5.2.4-1ubuntu1_amd64.deb, 
-lua5.2-doc_5.2.4-1ubuntu1_all.deb (based on ASmith's report)
+* RetroShare v0.6
+* Lua 5.5
 
-How to build
+MSYS2:
+pacman -S mingw-w64-x86_64-lua
+
+Ubuntu:
+sudo apt install lua5.5
+
+Arch Linux:
+sudo pacman -S lua
+
+# Build & install
 ------------
-Simply run "qmake" (or "qmake-qt4") and "make". Then place libLua4RS.so/Lua4RS.dll in your extension folder.
+
+put/clone `Lua4RS` to `RetroShare/plugins/` recommend
+
+	cd ${YOUR_DIR}/RetroShare/plugins/Lua4RS/
+	qmake
+	make 
+
+Then place libLua4RS.so/Lua4RS.dll in your extension folder.

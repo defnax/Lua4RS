@@ -7,12 +7,6 @@ greaterThan(QT_MAJOR_VERSION, 4) {
 	QT += widgets
 }
 
-# when rapidjson is mainstream on all distribs, we will not need the sources anymore
-# in the meantime, they are part of the RS directory so that it is always possible to find them
-
-INCLUDEPATH += ../../rapidjson-1.1.0
-
-
 linux-* {
     CONFIG += link_pkgconfig
 
@@ -32,8 +26,11 @@ linux-* {
 }
 
 win32 {
-    LIBS += -llua53
-    INCLUDEPATH += ../../../lua-5.3.0/src
+    # MSYS2 provides Lua through the toolchain include/library directories.
+    # Override these for a separately installed Lua version.
+    isEmpty(LUA_LIBS): LUA_LIBS = -llua
+    LIBS += $$LUA_LIBS
+    INCLUDEPATH += $$LUA_INCLUDEPATH
 }
 
 HEADERS +=  \
@@ -66,8 +63,6 @@ SOURCES +=  \
     gui/Lua4RSConfig.cpp \
     gui/Lua4RSTextEdit.cpp \
     Lua/LuaCore.cpp \
-    Lua/LuaToRS.cpp \
-    Lua/LuaToRSPeers.cpp \
     Lua/LuaCode.cpp \
     Lua/LuaList.cpp \
     Lua/LuaConfig.cpp \
@@ -79,11 +74,16 @@ SOURCES +=  \
     Lua/Trigger/LuaTriggerShutdown.cpp \
     Lua/Trigger/LuaTriggerOnce.cpp \
     service/p3Lua4RS.cpp \
+    helper.cpp
+
+# These bindings are included by LuaCore.cpp and must not be linked twice.
+OTHER_FILES += \
+    Lua/LuaToRS.cpp \
+    Lua/LuaToRSPeers.cpp \
     Lua/LuaToRSServerConfig.cpp \
     Lua/LuaToRSDiscovery.cpp \
     Lua/LuaToRSChat.cpp \
-    Lua/LuaToRSFile.cpp \
-    helper.cpp
+    Lua/LuaToRSFile.cpp
 
 FORMS += \
     gui/Lua4RSWidget.ui \

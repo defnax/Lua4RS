@@ -52,6 +52,7 @@ LuaCore::~LuaCore()
 
 void LuaCore::shutDown()
 {
+    _notify->stop();
     // disbale output - gui might be gone by now!
     _ui->disableOutput();
     _shutDownImminent = true;
