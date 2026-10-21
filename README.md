@@ -6,7 +6,7 @@ A RetroShare plugin to automate and script things on RetroShare using the Lua la
 What is RetroShare?
 -------------------
 RetroShare is a secure decentralised communication platform.
-[http://retroshare.sourceforge.net/](https://github.com/RetroShare/RetroShare)
+https://github.com/RetroShare
 
 What is Lua4RS?
 ---------------
@@ -17,14 +17,15 @@ Requirements
 * RetroShare v0.6
 * Lua 5.5
 
-MSYS2:
-pacman -S mingw-w64-x86_64-lua
+### MSYS2:
 
-Ubuntu:
-sudo apt install lua5.5
+`pacman -S mingw-w64-x86_64-lua`
 
-Arch Linux:
-sudo pacman -S lua
+### Ubuntu:
+`sudo apt install lua5.5`
+
+### Arch Linux:
+`sudo pacman -S lua`
 
 # Build & install
 ------------
