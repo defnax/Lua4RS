@@ -8,6 +8,7 @@
 
 #include "LuaCore.h"
 #include "LuaList.h"
+#include "LuaJsonApi.h"
 #include "gui/Lua4RSWidget.h"
 #include "Lua4RSNotify.h"
 
@@ -20,12 +21,31 @@
 
 #include "helper.h"
 
+namespace {
+int printToOutput(lua_State* state)
+{
+    auto core = static_cast<LuaCore*>(lua_touserdata(state, lua_upvalueindex(1)));
+    QStringList parts;
+    const int count = lua_gettop(state);
+    for(int i = 1; i <= count; ++i)
+    {
+        size_t length = 0;
+        const char* text = luaL_tolstring(state, i, &length);
+        parts.append(QString::fromUtf8(text, static_cast<int>(length)));
+        lua_pop(state, 1);
+    }
+    core->emitAppendOutput(parts.join('\t'));
+    return 0;
+}
+}
+
 LuaCore::LuaCore() :
     _folderName ("Lua4RS"),
     _mutex      ("Lua4RS"),
     _mutexRunLua("Lua4RS Lua"),
     _luaList    (new LuaList()),
     _notify     (new Lua4RSNotify()),
+    _ui         (nullptr),
     _processingEvent(false),
     _shutDownImminent (false)
 {
@@ -35,6 +55,10 @@ LuaCore::LuaCore() :
      */
     L = luaL_newstate();
     luaL_openlibs(L);
+    registerLuaJsonApi(L);
+    lua_pushlightuserdata(L, this);
+    lua_pushcclosure(L, printToOutput, 1);
+    lua_setglobal(L, "print");
 
     _path = RsAccounts::AccountDirectory() + "/" + _folderName + "/";
 
@@ -54,7 +78,7 @@ void LuaCore::shutDown()
 {
     _notify->stop();
     // disbale output - gui might be gone by now!
-    _ui->disableOutput();
+    if(_ui) _ui->disableOutput();
     _shutDownImminent = true;
 
     // send shotdown event
@@ -97,6 +121,21 @@ void LuaCore::setupRsFunctionsAndTw(QTreeWidget* tw)
 
     // we need to mess around with lua
     RsStackMutex mtx(_mutex);   /******* LOCKED MUTEX *****/
+
+    QTreeWidgetItem* json = new QTreeWidgetItem(tw);
+    json->setText(0, "jsonapi.");
+    json->setText(1, "jsonapi.");
+    const QStringList jsonFunctions = {
+        "configure({})", "call(\"/rsPeers/getFriendList\", {})",
+        "encode({})", "decode(\"{}\")", "array()", "null"
+    };
+    for(const QString& function : jsonFunctions)
+    {
+        QTreeWidgetItem* item = new QTreeWidgetItem(json);
+        item->setText(0, function);
+        item->setText(1, "jsonapi." + function);
+        item->setToolTip(0, QObject::tr("RetroShare JSON API client. See JSON_API.md for connection settings and examples."));
+    }
 
     // rs namespace
     namespc = "rs.";
@@ -292,27 +331,47 @@ bool LuaCore::processEventQueue()
 }
 
 // invoke lua
-void LuaCore::runLuaByString(const QString& code)
+bool LuaCore::runLuaByString(const QString& code)
 {
     if(_ui == NULL)
     {
         std::cerr << "[Lua] runLuaByString: ERROR: _ui is NULL -> aborting Lua execution" << std::endl;
-        return;
+        return false;
     }
 
-    std::string code2;
-#ifdef _WIN32
-    code2 = code.toLocal8Bit().constData();
-#else
-    code2 = code.toUtf8().constData();
-#endif
+    const QByteArray code2 = code.toUtf8();
 
     // Since the executed Lua code might trigger a RS event which then leads to an event within Lua4RS we can end in a dead lock.
     // Adding the new event within Lua4RS will try to lock the mutex - which is impossible since we are holding it here already.
     // --> use separared mutex for executing Lua
     RsStackMutex mtx(_mutexRunLua);   /******* LOCKED MUTEX *****/
-    int ret = luaL_dostring(L, code2.c_str());
+    int ret = luaL_loadbuffer(L, code2.constData(), code2.size(), "editor");
+    if(ret == LUA_OK) ret = lua_pcall(L, 0, 0, 0);
     reportLuaErrors(L, ret);
+    return ret == LUA_OK;
+}
+
+bool LuaCore::configureJsonApi(const QString& url, const QString& username,
+                             const QString& password, QString& error)
+{
+    RsStackMutex lock(_mutexRunLua);
+    const int top = lua_gettop(L);
+    lua_getglobal(L, "jsonapi");
+    if(!lua_istable(L, -1))
+    { lua_settop(L, top); error = QObject::tr("The jsonapi table was replaced by a script. Restart the plugin to restore it."); return false; }
+    lua_getfield(L, -1, "configure");
+    lua_newtable(L);
+    const auto field = [this](const char* key, const QString& value) {
+        const QByteArray bytes = value.toUtf8();
+        lua_pushlstring(L, bytes.constData(), bytes.size()); lua_setfield(L, -2, key);
+    };
+    field("url", url); field("username", username); field("password", password);
+    lua_pushinteger(L, 10000); lua_setfield(L, -2, "timeout_ms");
+    const int result = lua_pcall(L, 1, 2, 0);
+    const bool success = result == LUA_OK && lua_toboolean(L, -2);
+    if(!success) error = QObject::tr("Could not apply JSON API settings. Restore jsonapi.configure if your script changed it.");
+    lua_settop(L, top);
+    return success;
 }
 
 void LuaCore::runLuaByName(const QString& name)

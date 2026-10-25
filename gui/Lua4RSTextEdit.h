@@ -2,12 +2,19 @@
 #define LUA4RSTEXTEDIT_H
 
 #include <QPlainTextEdit>
+#include <QPalette>
+
+class QLuaSyntaxHighlighter;
 
 class Lua4RSTextEdit : public QPlainTextEdit
 {
 public:
 	explicit Lua4RSTextEdit(QWidget *parent = 0);
 	~Lua4RSTextEdit() {}
+protected:
+    void changeEvent(QEvent* event) override;
+private:
+    QLuaSyntaxHighlighter* _highlighter = nullptr;
 };
 
 #include <QSyntaxHighlighter>
@@ -19,7 +26,7 @@ class QLuaSyntaxHighlighter : public QSyntaxHighlighter
 {
 	Q_OBJECT
 public:
-	explicit QLuaSyntaxHighlighter(QTextDocument *document = 0);
+	explicit QLuaSyntaxHighlighter(QTextDocument *document, const QPalette& palette);
 	~QLuaSyntaxHighlighter() {}
 
 protected:

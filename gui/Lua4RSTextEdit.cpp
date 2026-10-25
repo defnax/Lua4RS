@@ -1,21 +1,36 @@
 #include <QVariant>
+#include <QEvent>
+#include <QFontDatabase>
 
 #include "Lua4RSTextEdit.h"
 
 Lua4RSTextEdit::Lua4RSTextEdit(QWidget *parent) :
 	QPlainTextEdit(parent)
 {
-	new QLuaSyntaxHighlighter(document());
+    setFont(QFontDatabase::systemFont(QFontDatabase::FixedFont));
+    _highlighter = new QLuaSyntaxHighlighter(document(), palette());
 }
 
-QLuaSyntaxHighlighter::QLuaSyntaxHighlighter(QTextDocument *document) :
+void Lua4RSTextEdit::changeEvent(QEvent* event)
+{
+    QPlainTextEdit::changeEvent(event);
+    if(event->type() == QEvent::PaletteChange)
+    {
+        delete _highlighter;
+        _highlighter = new QLuaSyntaxHighlighter(document(), palette());
+        _highlighter->rehighlight();
+    }
+}
+
+QLuaSyntaxHighlighter::QLuaSyntaxHighlighter(QTextDocument *document, const QPalette& palette) :
 	QSyntaxHighlighter(document)
 {
 	HighlightingRule rule;
+    const bool dark = palette.color(QPalette::Base).lightness() < 128;
 
 	// special words
 	QTextCharFormat keywordFormat;
-	keywordFormat.setForeground(Qt::darkBlue);
+	keywordFormat.setForeground(dark ? QColor("#93c5fd") : QColor("#1e40af"));
 	keywordFormat.setFontWeight(QFont::Bold);
 	QStringList keywordPatterns;
 	keywordPatterns	<< "\\btrue\\b"		<< "\\bfalse\\b"	<< "\\bnil\\b"
@@ -33,7 +48,7 @@ QLuaSyntaxHighlighter::QLuaSyntaxHighlighter(QTextDocument *document) :
 
 	// operators
 	QTextCharFormat operatorFormat;
-	operatorFormat.setForeground(Qt::darkGray);
+	operatorFormat.setForeground(palette.color(QPalette::Text));
 	operatorFormat.setFontWeight(QFont::Bold);
 	QStringList operatorPatterns;
 	operatorPatterns << "\\band\\b"	<< "\\bnot\\b" << "\\bor\\b"
@@ -53,28 +68,28 @@ QLuaSyntaxHighlighter::QLuaSyntaxHighlighter(QTextDocument *document) :
 
 	// numbers
 	QTextCharFormat numberFormat;
-	numberFormat.setForeground(Qt::magenta);
+	numberFormat.setForeground(dark ? QColor("#d8b4fe") : QColor("#7e22ce"));
 	rule.pattern = QRegExp("[0-9]+");
 	rule.format = numberFormat;
 	_highlightingRules.append(rule);
 
 	// functions
 	QTextCharFormat functionFormat;
-	functionFormat.setForeground(Qt::blue);
+	functionFormat.setForeground(dark ? QColor("#67e8f9") : QColor("#0369a1"));
 	rule.pattern = QRegExp("\\b[A-Za-z0-9_]+(?=\\()");
 	rule.format = functionFormat;
 	_highlightingRules.append(rule);
 
 	// namespaces
 	QTextCharFormat namespaceFormat;
-	namespaceFormat.setForeground(Qt::darkMagenta);
+	namespaceFormat.setForeground(dark ? QColor("#c4b5fd") : QColor("#6d28d9"));
 	rule.pattern = QRegExp("\\b(?=(.*[a-z]))[A-Za-z0-9_]+(?=\\.)");
 	rule.format = namespaceFormat;
 	_highlightingRules.append(rule);
 
 	// quotations - add at the end! (but before comments)
 	QTextCharFormat quotationFormat;
-	quotationFormat.setForeground(Qt::darkYellow);
+	quotationFormat.setForeground(dark ? QColor("#fcd34d") : QColor("#854d0e"));
 	rule.pattern = QRegExp("\".*\"");
 	rule.pattern.setMinimal(true);
 	rule.format = quotationFormat;
@@ -87,7 +102,7 @@ QLuaSyntaxHighlighter::QLuaSyntaxHighlighter(QTextDocument *document) :
 	// comments - add at the end!
 	// single line
 	QTextCharFormat singleLineCommentFormat;
-	singleLineCommentFormat.setForeground(Qt::darkGreen);
+	singleLineCommentFormat.setForeground(dark ? QColor("#86efac") : QColor("#166534"));
 	rule.pattern = QRegExp("--[^\n]*");
 	rule.format = singleLineCommentFormat;
 	_highlightingRules.append(rule);
@@ -95,7 +110,7 @@ QLuaSyntaxHighlighter::QLuaSyntaxHighlighter(QTextDocument *document) :
 	// multi lines
 	_commentStartExpression = QRegExp("--\\[\\[");
 	_commentEndExpression = QRegExp("\\]\\]");
-	_multiLineCommentFormat.setForeground(Qt::darkGreen);
+	_multiLineCommentFormat.setForeground(dark ? QColor("#86efac") : QColor("#166534"));
 	_multiLineCommentFormat.setFontItalic(true);
 
 }

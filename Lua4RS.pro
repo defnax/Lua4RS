@@ -1,6 +1,8 @@
 !include("../Common/retroshare_plugin.pri")::error( "Could not include file ../Common/retroshare_plugin.pri" )
 
 CONFIG += qt resources uic qrc
+CONFIG += c++17
+QT += network
 
 greaterThan(QT_MAJOR_VERSION, 4) {
 	# Qt 5
@@ -34,6 +36,7 @@ win32 {
 }
 
 HEADERS +=  \
+    Lua/LuaJsonApi.h \
     Lua4RSPlugin.h \
     Lua4RSNotify.h \
     gui/Lua4RSWidget.h \
@@ -57,6 +60,7 @@ HEADERS +=  \
     helper.h
 
 SOURCES +=  \
+    Lua/LuaJsonApi.cpp \
     Lua4RSPlugin.cpp \
     Lua4RSNotify.cpp \
     gui/Lua4RSWidget.cpp \

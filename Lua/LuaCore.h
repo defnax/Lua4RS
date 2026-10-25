@@ -45,7 +45,9 @@ public:
     bool processEventQueue();
 
     // invoke lua
-    void runLuaByString(const QString& code);
+    bool runLuaByString(const QString& code);
+    bool configureJsonApi(const QString& url, const QString& username,
+                          const QString& password, QString& error);
     void runLuaByName(const QString& name);
     //void runLuaByNameWithParams(const QString& name, parameterMap paramMap);
     void runLuaByEvent(LuaContainer* container, const LuaEvent& event);
