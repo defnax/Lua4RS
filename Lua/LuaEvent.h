@@ -2,23 +2,32 @@
 #define LUAEVENT_H
 
 #include <QDateTime>
-#include <QSettings>
+#include <QVariant>
+#include <QMap>
+#include <QStringList>
+#include <list>
+
+// Each queued event owns its parameters; never share persistent QSettings.
+class LuaEventParameters
+{
+public:
+    void setValue(const QString& key, const QVariant& value) { values.insert(key, value); }
+    QVariant value(const QString& key) const { return values.value(key); }
+    QStringList allKeys() const { return values.keys(); }
+private:
+    QMap<QString, QVariant> values;
+};
 
 //------------------------------------------------------------------------------
 struct LuaEvent {
-#if QT_VERSION >= 0x050000
-    // with Qt5 qsettings need an application name + organization name to work
-    LuaEvent() : dataParm(new QSettings("Lua4RS", "Lua4RS")) {}
-#else
-    LuaEvent() : dataParm(new QSettings()) {}
-#endif
-
-    // clear settings just in case Qt want to store them permanently somewhere
-    ~LuaEvent() { dataParm->clear(); delete dataParm; }
+    LuaEvent() : dataParm(new LuaEventParameters()) {}
+    ~LuaEvent() { delete dataParm; }
+    LuaEvent(const LuaEvent&) = delete;
+    LuaEvent& operator=(const LuaEvent&) = delete;
 
     uint        eventId;
     QDateTime   timeStamp;
-    QSettings*  dataParm;
+    LuaEventParameters* dataParm;
 };
 /*
  * 3 chars to identify type

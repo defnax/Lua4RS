@@ -391,13 +391,11 @@ void addSettingsEntryToLua(lua_State *L, int top, const QString &type, const QVa
 {
 //    std::cout << "[Lua] runByEvent/addSettingsEntry adding " << name.toStdString() << " with " << value.toString().toStdString() << std::endl;
 
-    lua_pushfstring(L, name.toStdString().c_str());
+    const QByteArray key = name.toUtf8();
+    lua_pushlstring(L, key.constData(), key.size());
     if(type == "str") {
-        // PANIC: unprotected error in call to Lua API (invalid option '%1' to 'lua_pushfstring')
-        ///TODO proper fix
-        std::string s = value.toString().toStdString();
-        replaceAll(s, "%", "");
-        lua_pushfstring(L, s.c_str());
+        const QByteArray text = value.toString().toUtf8();
+        lua_pushlstring(L, text.constData(), text.size());
     }
     else if(type == "int")
         lua_pushinteger(L, value.toInt());
@@ -409,7 +407,7 @@ void addSettingsEntryToLua(lua_State *L, int top, const QString &type, const QVa
     lua_settable(L, top);
 }
 
-void addSettingsToLua(lua_State  *L, int top, QSettings *settings, int8_t skipLvl)
+void addSettingsToLua(lua_State  *L, int top, LuaEventParameters *settings, int8_t skipLvl)
 {
     QStringList keys = settings->allKeys();
     for(QStringList::ConstIterator it = keys.begin(); it != keys.end(); it++)

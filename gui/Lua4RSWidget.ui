@@ -2,9 +2,6 @@
 <ui version="4.0">
  <class>Lua4RSWidget</class>
  <widget class="QWidget" name="Lua4RSWidget">
-  <property name="windowTitle">
-   <string>Lua4RS — Lua scripting</string>
-  </property>
   <property name="geometry">
    <rect>
     <x>0</x>
@@ -12,6 +9,9 @@
     <width>1240</width>
     <height>780</height>
    </rect>
+  </property>
+  <property name="windowTitle">
+   <string>Lua4RS — Lua scripting</string>
   </property>
   <property name="styleSheet">
    <string>QLabel#titleLabel { font-size: 22px; font-weight: 600; } QLabel#scriptsLabel { font-weight: 600; } QPushButton { padding: 5px 10px; } QPushButton#pb_run { background-color: palette(highlight); color: palette(highlighted-text); font-weight: 600; }</string>
@@ -101,6 +101,9 @@
          <property name="editTriggers">
           <set>QAbstractItemView::NoEditTriggers</set>
          </property>
+         <property name="alternatingRowColors">
+          <bool>false</bool>
+         </property>
          <property name="selectionMode">
           <enum>QAbstractItemView::SingleSelection</enum>
          </property>
@@ -109,9 +112,6 @@
          </property>
          <property name="showGrid">
           <bool>false</bool>
-         </property>
-         <property name="alternatingRowColors">
-          <bool>true</bool>
          </property>
          <column>
           <property name="text">
@@ -163,17 +163,17 @@
       </layout>
      </widget>
      <widget class="QSplitter" name="editorSplitter">
-      <property name="orientation">
-       <enum>Qt::Vertical</enum>
-      </property>
-      <property name="childrenCollapsible">
-       <bool>false</bool>
-      </property>
       <property name="minimumSize">
        <size>
         <width>380</width>
         <height>0</height>
        </size>
+      </property>
+      <property name="orientation">
+       <enum>Qt::Vertical</enum>
+      </property>
+      <property name="childrenCollapsible">
+       <bool>false</bool>
       </property>
       <widget class="QWidget" name="editorPane">
        <layout class="QVBoxLayout" name="editorLayout">
@@ -202,11 +202,11 @@
           </item>
           <item>
            <widget class="QPushButton" name="pb_run">
-            <property name="text">
-             <string>Run  F5</string>
-            </property>
             <property name="toolTip">
              <string>Run the code currently shown in the editor. Automatic triggers are not required.</string>
+            </property>
+            <property name="text">
+             <string>Run  F5</string>
             </property>
            </widget>
           </item>
@@ -228,13 +228,13 @@
            <layout class="QVBoxLayout" name="codeTabLayout">
             <item>
              <widget class="Lua4RSTextEdit" name="pte_luacode">
+              <property name="lineWrapMode">
+               <enum>QPlainTextEdit::NoWrap</enum>
+              </property>
               <property name="placeholderText">
                <string>Start with Example → Hello world, then click Run.
 
 Your results appear in Output below.</string>
-              </property>
-              <property name="lineWrapMode">
-               <enum>QPlainTextEdit::NoWrap</enum>
               </property>
              </widget>
             </item>
@@ -263,154 +263,152 @@ Your results appear in Output below.</string>
              </widget>
             </item>
             <item>
-             <widget class="QWidget" name="automationSettings">
-              <layout class="QVBoxLayout" name="automationSettingsLayout">
-               <item>
-                <layout class="QHBoxLayout" name="everyRow">
-                 <item>
-                  <widget class="QCheckBox" name="cb_every">
+             <layout class="QVBoxLayout" name="automationSettingsLayout">
+              <item>
+               <layout class="QHBoxLayout" name="everyRow">
+                <item>
+                 <widget class="QCheckBox" name="cb_every">
+                  <property name="text">
+                   <string>Repeat every</string>
+                  </property>
+                 </widget>
+                </item>
+                <item>
+                 <widget class="QSpinBox" name="spb_everycount">
+                  <property name="minimum">
+                   <number>1</number>
+                  </property>
+                  <property name="maximum">
+                   <number>100000</number>
+                  </property>
+                  <property name="value">
+                   <number>5</number>
+                  </property>
+                 </widget>
+                </item>
+                <item>
+                 <widget class="QComboBox" name="dd_everyunits">
+                  <property name="currentIndex">
+                   <number>1</number>
+                  </property>
+                  <item>
                    <property name="text">
-                    <string>Repeat every</string>
+                    <string>seconds</string>
                    </property>
-                  </widget>
-                 </item>
-                 <item>
-                  <widget class="QSpinBox" name="spb_everycount">
-                   <property name="minimum">
-                    <number>1</number>
-                   </property>
-                   <property name="maximum">
-                    <number>100000</number>
-                   </property>
-                   <property name="value">
-                    <number>5</number>
-                   </property>
-                  </widget>
-                 </item>
-                 <item>
-                  <widget class="QComboBox" name="dd_everyunits">
-                   <item>
-                    <property name="text">
-                     <string>seconds</string>
-                    </property>
-                   </item>
-                   <item>
-                    <property name="text">
-                     <string>minutes</string>
-                    </property>
-                   </item>
-                   <item>
-                    <property name="text">
-                     <string>hours</string>
-                    </property>
-                   </item>
-                   <item>
-                    <property name="text">
-                     <string>days</string>
-                    </property>
-                   </item>
-                   <item>
-                    <property name="text">
-                     <string>weeks</string>
-                    </property>
-                   </item>
-                   <property name="currentIndex">
-                    <number>1</number>
-                   </property>
-                  </widget>
-                 </item>
-                </layout>
-               </item>
-               <item>
-                <layout class="QHBoxLayout" name="onceRow">
-                 <item>
-                  <widget class="QCheckBox" name="cb_once">
+                  </item>
+                  <item>
                    <property name="text">
-                    <string>Run once at</string>
+                    <string>minutes</string>
                    </property>
-                  </widget>
-                 </item>
-                 <item>
-                  <widget class="QDateTimeEdit" name="dte_runonce">
-                   <property name="calendarPopup">
-                    <bool>true</bool>
-                   </property>
-                   <property name="displayFormat">
-                    <string>yyyy-MM-dd HH:mm</string>
-                   </property>
-                  </widget>
-                 </item>
-                </layout>
-               </item>
-               <item>
-                <widget class="QCheckBox" name="cb_startup">
-                 <property name="text">
-                  <string>When RetroShare starts</string>
-                 </property>
-                </widget>
-               </item>
-               <item>
-                <widget class="QCheckBox" name="cb_shutdown">
-                 <property name="text">
-                  <string>When RetroShare closes</string>
-                 </property>
-                </widget>
-               </item>
-               <item>
-                <widget class="QLabel" name="eventLabel">
-                 <property name="text">
-                  <string>Or when an event occurs:</string>
-                 </property>
-                </widget>
-               </item>
-               <item>
-                <widget class="QCheckBox" name="cb_chatmessage">
-                 <property name="text">
-                  <string>A chat message arrives</string>
-                 </property>
-                </widget>
-               </item>
-               <item>
-                <widget class="QCheckBox" name="cb_turtleSearchResult">
-                 <property name="text">
-                  <string>A file search result arrives</string>
-                 </property>
-                </widget>
-               </item>
-               <item>
-                <layout class="QHBoxLayout" name="constraintRow">
-                 <item>
-                  <widget class="QCheckBox" name="cbx_timeconstraint">
+                  </item>
+                  <item>
                    <property name="text">
-                    <string>Only between</string>
+                    <string>hours</string>
                    </property>
-                  </widget>
-                 </item>
-                 <item>
-                  <widget class="QTimeEdit" name="tied_timefrom">
-                   <property name="displayFormat">
-                    <string>HH:mm</string>
-                   </property>
-                  </widget>
-                 </item>
-                 <item>
-                  <widget class="QLabel" name="toLabel">
+                  </item>
+                  <item>
                    <property name="text">
-                    <string>and</string>
+                    <string>days</string>
                    </property>
-                  </widget>
-                 </item>
-                 <item>
-                  <widget class="QTimeEdit" name="tied_timeto">
-                   <property name="displayFormat">
-                    <string>HH:mm</string>
+                  </item>
+                  <item>
+                   <property name="text">
+                    <string>weeks</string>
                    </property>
-                  </widget>
-                 </item>
-                </layout>
-               </item>
-              </layout>
-             </widget>
+                  </item>
+                 </widget>
+                </item>
+               </layout>
+              </item>
+              <item>
+               <layout class="QHBoxLayout" name="onceRow">
+                <item>
+                 <widget class="QCheckBox" name="cb_once">
+                  <property name="text">
+                   <string>Run once at</string>
+                  </property>
+                 </widget>
+                </item>
+                <item>
+                 <widget class="QDateTimeEdit" name="dte_runonce">
+                  <property name="displayFormat">
+                   <string>yyyy-MM-dd HH:mm</string>
+                  </property>
+                  <property name="calendarPopup">
+                   <bool>true</bool>
+                  </property>
+                 </widget>
+                </item>
+               </layout>
+              </item>
+              <item>
+               <widget class="QCheckBox" name="cb_startup">
+                <property name="text">
+                 <string>When RetroShare starts</string>
+                </property>
+               </widget>
+              </item>
+              <item>
+               <widget class="QCheckBox" name="cb_shutdown">
+                <property name="text">
+                 <string>When RetroShare closes</string>
+                </property>
+               </widget>
+              </item>
+              <item>
+               <widget class="QLabel" name="eventLabel">
+                <property name="text">
+                 <string>Or when an event occurs:</string>
+                </property>
+               </widget>
+              </item>
+              <item>
+               <widget class="QCheckBox" name="cb_chatmessage">
+                <property name="text">
+                 <string>A chat message arrives</string>
+                </property>
+               </widget>
+              </item>
+              <item>
+               <widget class="QCheckBox" name="cb_turtleSearchResult">
+                <property name="text">
+                 <string>A file search result arrives</string>
+                </property>
+               </widget>
+              </item>
+              <item>
+               <layout class="QHBoxLayout" name="constraintRow">
+                <item>
+                 <widget class="QCheckBox" name="cbx_timeconstraint">
+                  <property name="text">
+                   <string>Only between</string>
+                  </property>
+                 </widget>
+                </item>
+                <item>
+                 <widget class="QTimeEdit" name="tied_timefrom">
+                  <property name="displayFormat">
+                   <string>HH:mm</string>
+                  </property>
+                 </widget>
+                </item>
+                <item>
+                 <widget class="QLabel" name="toLabel">
+                  <property name="text">
+                   <string>and</string>
+                  </property>
+                 </widget>
+                </item>
+                <item>
+                 <widget class="QTimeEdit" name="tied_timeto">
+                  <property name="displayFormat">
+                   <string>HH:mm</string>
+                  </property>
+                 </widget>
+                </item>
+               </layout>
+              </item>
+             </layout>
             </item>
             <item>
              <spacer name="automationSpace">
@@ -551,11 +549,11 @@ Your results appear in Output below.</string>
         </item>
         <item>
          <widget class="QLineEdit" name="le_apipassword">
-          <property name="placeholderText">
-           <string>API password, not your profile password</string>
-          </property>
           <property name="echoMode">
            <enum>QLineEdit::Password</enum>
+          </property>
+          <property name="placeholderText">
+           <string>API password, not your profile password</string>
           </property>
          </widget>
         </item>
@@ -678,6 +676,6 @@ Your results appear in Output below.</string>
    <header>gui/Lua4RSTextEdit.h</header>
   </customwidget>
  </customwidgets>
- <resources />
- <connections />
+ <resources/>
+ <connections/>
 </ui>

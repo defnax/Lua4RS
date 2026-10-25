@@ -191,12 +191,14 @@ void Lua4RSWidget::updateEditorState()
     ui->pb_save->setEnabled(active && _dirty);
     ui->pb_save->setText(_dirty ? tr("Save *") : tr("Save"));
     ui->pb_deletescript->setEnabled(active && !_draft);
-    ui->automationSettings->setEnabled(active && ui->cbx_enable->isChecked());
-    ui->spb_everycount->setEnabled(ui->cb_every->isChecked());
-    ui->dd_everyunits->setEnabled(ui->cb_every->isChecked());
-    ui->dte_runonce->setEnabled(ui->cb_once->isChecked());
-    ui->tied_timefrom->setEnabled(ui->cbx_timeconstraint->isChecked());
-    ui->tied_timeto->setEnabled(ui->cbx_timeconstraint->isChecked());
+    const bool automatic = active && ui->cbx_enable->isChecked();
+    for(auto box : ui->automationTab->findChildren<QCheckBox*>())
+        if(box != ui->cbx_enable) box->setEnabled(automatic);
+    ui->spb_everycount->setEnabled(automatic && ui->cb_every->isChecked());
+    ui->dd_everyunits->setEnabled(automatic && ui->cb_every->isChecked());
+    ui->dte_runonce->setEnabled(automatic && ui->cb_once->isChecked());
+    ui->tied_timefrom->setEnabled(automatic && ui->cbx_timeconstraint->isChecked());
+    ui->tied_timeto->setEnabled(automatic && ui->cbx_timeconstraint->isChecked());
 }
 
 void Lua4RSWidget::markDirty()
