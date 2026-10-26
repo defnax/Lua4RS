@@ -134,3 +134,30 @@ objects/arrays/null, invalid inputs, redirects, HTTP errors, malformed replies,
 timeouts, SSE framing, callback errors, nested calls and disconnects. It never
 connects to a real RetroShare account. Real-server integration must still be
 checked against your enabled API and credentials.
+# Functions browser
+
+The GUI separates **JSON API endpoints**, **JSON API client helpers**, and
+**Native Lua helpers (GUI only)**. Search includes endpoint names, input types,
+and response fields. Double-click a callable entry to insert a template; hover
+over it for its inputs and response fields. Category headings do not insert code.
+
+The endpoint catalogue is a checked-in snapshot of RetroShare's generated
+`jsonapi-wrappers.inl`, not live server discovery. A server with different build
+options or a different version may expose different endpoints. Manual wrappers
+are not included. Regenerate it after updating RetroShare:
+
+```sh
+python tools/generate-api-catalog.py ../../jsonapi-generator/src/jsonapi-wrappers.inl
+```
+
+Define the input variables shown in the inserted template before running it.
+The template checks for missing inputs and prints the JSON response. Types are
+the source C++ types: IDs require strings, arrays can use `jsonapi.array()`, and
+complex structures require the server's serialized JSON fields. The catalogue
+does not generate full schemas for these structures. Inspect `result.retval`
+when present; an HTTP success does not necessarily mean the operation succeeded.
+Calls may change RetroShare state depending on the selected endpoint.
+
+Streaming endpoints are labelled and do not insert `jsonapi.call` templates.
+Use Automation triggers in the GUI. The standalone runner's `jsonapi.subscribe`
+supports the RetroShare event stream; it is not a generic streaming API client.

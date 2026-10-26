@@ -9,7 +9,9 @@
 #include "LuaCore.h"
 #include "LuaList.h"
 #include "LuaJsonApi.h"
+#include "BundledScripts.h"
 #include "gui/Lua4RSWidget.h"
+#include "gui/FunctionBrowser.h"
 #include "Lua4RSNotify.h"
 
 #include "LuaToRS.cpp"
@@ -64,6 +66,9 @@ LuaCore::LuaCore() :
 
     // load codes
     _luaList->setFilePath(_path);
+    QString exampleError;
+    if(!BundledScripts::install(QString::fromStdString(_path), exampleError))
+        std::cerr << "[Lua] " << exampleError.toStdString() << std::endl;
     if(_luaList->loadAll())
         std::cout << "[Lua] loaded " << _luaList->size() << " Lua script(s)" << std::endl;
     else
@@ -122,11 +127,12 @@ void LuaCore::setupRsFunctionsAndTw(QTreeWidget* tw)
     // we need to mess around with lua
     RsStackMutex mtx(_mutex);   /******* LOCKED MUTEX *****/
 
+    FunctionBrowser::addJsonEndpoints(tw);
     QTreeWidgetItem* json = new QTreeWidgetItem(tw);
-    json->setText(0, "jsonapi.");
-    json->setText(1, "jsonapi.");
+    json->setText(0, "JSON API client helpers");
+    json->setToolTip(0, QObject::tr("Connection and JSON utilities. subscribe is standalone-only; use Automation triggers in the GUI."));
     const QStringList jsonFunctions = {
-        "configure({})", "call(\"/rsPeers/getFriendList\", {})",
+        "configure({url = \"http://127.0.0.1:9092\", username = \"YOUR_USER\", password = \"YOUR_PASSWORD\"})", "call(\"/rsPeers/getFriendList\", {})",
         "encode({})", "decode(\"{}\")", "array()", "null"
     };
     for(const QString& function : jsonFunctions)
@@ -137,23 +143,26 @@ void LuaCore::setupRsFunctionsAndTw(QTreeWidget* tw)
         item->setToolTip(0, QObject::tr("RetroShare JSON API client. See JSON_API.md for connection settings and examples."));
     }
 
+    auto native = new QTreeWidgetItem(tw, {QObject::tr("Native Lua helpers (GUI only)")});
+    native->setToolTip(0, QObject::tr("Direct plugin bindings; no JSON API connection required. Replace placeholder arguments before running."));
+
     // rs namespace
     namespc = "rs.";
-    QTreeWidgetItem* rs = new QTreeWidgetItem(tw);
+    QTreeWidgetItem* rs = new QTreeWidgetItem(native);
     rs->setText(0, QString::fromStdString(namespc));
     rs->setText(1, QString::fromStdString(namespc));
     lua_newtable(L);
     top = lua_gettop(L);
 
     addFunctionToLuaAndTw(top, namespc, rs, rs_clear,       "clear()",      QObject::tr("clears the output"));
-    addFunctionToLuaAndTw(top, namespc, rs, rs_print,       "print()",      QObject::tr("prints to output"));
+    addFunctionToLuaAndTw(top, namespc, rs, rs_print,       "print(\"message\")",      QObject::tr("prints to output"));
     addFunctionToLuaAndTw(top, namespc, rs, rs_luaFolder,   "luaFolder()",  QObject::tr("path to Lua4RS folder"));
 
     lua_setglobal(L, "rs");
 
     // peers namespace
     namespc = "peers.";
-    QTreeWidgetItem* peers = new QTreeWidgetItem(tw);
+    QTreeWidgetItem* peers = new QTreeWidgetItem(native);
     peers->setText(0, QString::fromStdString(namespc));
     peers->setText(1, QString::fromStdString(namespc));
     lua_newtable(L);
@@ -164,38 +173,38 @@ void LuaCore::setupRsFunctionsAndTw(QTreeWidget* tw)
     addFunctionToLuaAndTw(top, namespc, peers, peers_getFriendList,     "getFriendList()",  QObject::tr("returns list of all friends (SSL id)"));
     addFunctionToLuaAndTw(top, namespc, peers, peers_getPeerCount,      "getPeerCount()",   QObject::tr("returns number of all friends and online friends"));
 
-    addFunctionToLuaAndTw(top, namespc, peers, peers_isFriend,          "isFriend()",       QObject::tr("returns if a peer is a friend"));
-    addFunctionToLuaAndTw(top, namespc, peers, peers_isGPGAccepted,     "isGPGAccepted()",  QObject::tr("returns is a PGP key is accepted"));
-    addFunctionToLuaAndTw(top, namespc, peers, peers_isOnline,          "isOnline()",       QObject::tr("returns if a peer is online"));
-    addFunctionToLuaAndTw(top, namespc, peers, peers_getGPGName,        "getGPGName()",     QObject::tr("returns the PGP name for a given PGP id"));
-    addFunctionToLuaAndTw(top, namespc, peers, peers_getPeerName,       "getPeerName()",    QObject::tr("returns the name for a given SSL/PGP id"));
-    addFunctionToLuaAndTw(top, namespc, peers, peers_getPeerDetails,    "getPeerDetails()", QObject::tr("returns peer details as a table for a given SSL id"));
+    addFunctionToLuaAndTw(top, namespc, peers, peers_isFriend,          "isFriend(\"SSL_ID\")",       QObject::tr("returns if a peer is a friend"));
+    addFunctionToLuaAndTw(top, namespc, peers, peers_isGPGAccepted,     "isGPGAccepted(\"PGP_ID\")",  QObject::tr("returns is a PGP key is accepted"));
+    addFunctionToLuaAndTw(top, namespc, peers, peers_isOnline,          "isOnline(\"SSL_ID\")",       QObject::tr("returns if a peer is online"));
+    addFunctionToLuaAndTw(top, namespc, peers, peers_getGPGName,        "getGPGName(\"PGP_ID\")",     QObject::tr("returns the PGP name for a given PGP id"));
+    addFunctionToLuaAndTw(top, namespc, peers, peers_getPeerName,       "getPeerName(\"SSL_ID\")",    QObject::tr("returns the name for a given SSL/PGP id"));
+    addFunctionToLuaAndTw(top, namespc, peers, peers_getPeerDetails,    "getPeerDetails(\"SSL_ID\")", QObject::tr("returns peer details as a table for a given SSL id"));
 
     addFunctionToLuaAndTw(top, namespc, peers, peers_getGPGOwnId,       "getGPGOwnId()",    QObject::tr("returns own PGP id"));
-    addFunctionToLuaAndTw(top, namespc, peers, peers_getGPGId,          "getGPGId()",       QObject::tr("returns the PGP id for a given SSL/PGP id"));
+    addFunctionToLuaAndTw(top, namespc, peers, peers_getGPGId,          "getGPGId(\"SSL_ID\")",       QObject::tr("returns the PGP id for a given SSL/PGP id"));
 
     //groups
-    addFunctionToLuaAndTw(top, namespc, peers, peers_addGroup,          "addGroup()",           QObject::tr("creates a new group"));
-    addFunctionToLuaAndTw(top, namespc, peers, peers_editGroup,         "editGroup()",          QObject::tr("edits an existing group"));
-    addFunctionToLuaAndTw(top, namespc, peers, peers_removeGroup,       "removeGroup()",        QObject::tr("removes the group with the given groupd id"));
-    addFunctionToLuaAndTw(top, namespc, peers, peers_getGroupInfo,      "getGroupInfo()",       QObject::tr("returns group info for a given group id"));
+    addFunctionToLuaAndTw(top, namespc, peers, peers_addGroup,          "addGroup({flag = 0, id = \"\", name = \"Group name\"})",           QObject::tr("creates a new group"));
+    addFunctionToLuaAndTw(top, namespc, peers, peers_editGroup,         "editGroup(\"GROUP_ID\", {flag = 0, id = \"GROUP_ID\", name = \"Group name\"})",          QObject::tr("edits an existing group"));
+    addFunctionToLuaAndTw(top, namespc, peers, peers_removeGroup,       "removeGroup(\"GROUP_ID\")",        QObject::tr("removes the group with the given groupd id"));
+    addFunctionToLuaAndTw(top, namespc, peers, peers_getGroupInfo,      "getGroupInfo(\"GROUP_ID\")",       QObject::tr("returns group info for a given group id"));
     addFunctionToLuaAndTw(top, namespc, peers, peers_getGroupInfoList,  "getGroupInfoList()",   QObject::tr("returns an array with all groups and their group infos"));
-    addFunctionToLuaAndTw(top, namespc, peers, peers_assignPeerToGroup, "assignPeerToGroup()",  QObject::tr("returns the PGP id for a given SSL/PGP id"));
+    addFunctionToLuaAndTw(top, namespc, peers, peers_assignPeerToGroup, "assignPeerToGroup(\"GROUP_ID\", \"PGP_ID\", true)",  QObject::tr("Assign or remove a PGP identity from a group (group ID, PGP ID, assign boolean); returns nothing"));
 
     lua_setglobal(L, "peers");
 
     // server config
     namespc = "config.";
-    QTreeWidgetItem* config = new QTreeWidgetItem(tw);
+    QTreeWidgetItem* config = new QTreeWidgetItem(native);
     config->setText(0, QString::fromStdString(namespc));
     config->setText(1, QString::fromStdString(namespc));
     lua_newtable(L);
     top = lua_gettop(L);
 
     addFunctionToLuaAndTw(top, namespc, config, config_getOperatingMode,    "getOperatingMode()",   QObject::tr("returns the current operation mode as int and string"));
-    addFunctionToLuaAndTw(top, namespc, config, config_setOperatingMode,    "setOperatingMode()",   QObject::tr("sets the openration mode (takes int or string)"));
+    addFunctionToLuaAndTw(top, namespc, config, config_setOperatingMode,    "setOperatingMode(\"full\")",   QObject::tr("sets the openration mode (takes int or string)"));
 
-    addFunctionToLuaAndTw(top, namespc, config, config_setMaxDataRates,     "setMaxDataRates()",    QObject::tr("sets max down-/upload bandwidth in kB"));
+    addFunctionToLuaAndTw(top, namespc, config, config_setMaxDataRates,     "setMaxDataRates(1000, 100)",    QObject::tr("sets max down-/upload bandwidth in kB"));
     addFunctionToLuaAndTw(top, namespc, config, config_getMaxDataRates,     "getMaxDataRates()",    QObject::tr("gets max down-/upload bandwidth in kB"));
     addFunctionToLuaAndTw(top, namespc, config, config_getCurrentDataRates, "getCurrentDataRates()",QObject::tr("gets current down-/upload bandwidth in kB"));
 
@@ -203,45 +212,45 @@ void LuaCore::setupRsFunctionsAndTw(QTreeWidget* tw)
 
     // discovery
     namespc = "disc.";
-    QTreeWidgetItem* discovery = new QTreeWidgetItem(tw);
+    QTreeWidgetItem* discovery = new QTreeWidgetItem(native);
     discovery->setText(0, QString::fromStdString(namespc));
     discovery->setText(1, QString::fromStdString(namespc));
     lua_newtable(L);
     top = lua_gettop(L);
 
-    addFunctionToLuaAndTw(top, namespc, discovery, disc_getDiscFriends,     "getDiscFriends()",     QObject::tr("gets discovery infos for a SSLID"));
-    addFunctionToLuaAndTw(top, namespc, discovery, disc_getDiscPgpFriends,  "getDiscPgpFriends()",  QObject::tr("gets discovery infos for a PGPID"));
-    addFunctionToLuaAndTw(top, namespc, discovery, disc_getPeerVersion,     "getPeerVersion()",     QObject::tr("gets RS version from a given peer"));
+    addFunctionToLuaAndTw(top, namespc, discovery, disc_getDiscFriends,     "getDiscFriends(\"SSL_ID\")",     QObject::tr("gets discovery infos for a SSLID"));
+    addFunctionToLuaAndTw(top, namespc, discovery, disc_getDiscPgpFriends,  "getDiscPgpFriends(\"PGP_ID\")",  QObject::tr("gets discovery infos for a PGPID"));
+    addFunctionToLuaAndTw(top, namespc, discovery, disc_getPeerVersion,     "getPeerVersion(\"SSL_ID\")",     QObject::tr("gets RS version from a given peer"));
     addFunctionToLuaAndTw(top, namespc, discovery, disc_getWaitingDiscCount,"getWaitingDiscCount()",QObject::tr("gets current pending discovery packets (down und up)"));
 
     lua_setglobal(L, "disc");
 
     // chat
     namespc = "chat.";
-    QTreeWidgetItem* chat = new QTreeWidgetItem(tw);
+    QTreeWidgetItem* chat = new QTreeWidgetItem(native);
     chat->setText(0, QString::fromStdString(namespc));
     chat->setText(1, QString::fromStdString(namespc));
     lua_newtable(L);
     top = lua_gettop(L);
 
-    addFunctionToLuaAndTw(top, namespc, chat, chat_sendChat, "sendChat()", QObject::tr("send a chat message (ChatId, msg)"));
+    addFunctionToLuaAndTw(top, namespc, chat, chat_sendChat, "sendChat(\"CHAT_ID\", \"message\")", QObject::tr("send a chat message (ChatId, msg)"));
 
     lua_setglobal(L, "chat");
 
     // files
     namespc = "files.";
-    QTreeWidgetItem* files = new QTreeWidgetItem(tw);
+    QTreeWidgetItem* files = new QTreeWidgetItem(native);
     files->setText(0, QString::fromStdString(namespc));
     files->setText(1, QString::fromStdString(namespc));
     lua_newtable(L);
     top = lua_gettop(L);
 
-    addFunctionToLuaAndTw(top, namespc, files, file_fileRequest,  "fileRequest()",					QObject::tr("request a download (params: name, hash, size"));
+    addFunctionToLuaAndTw(top, namespc, files, file_fileRequest,  "fileRequest(\"filename\", \"FILE_HASH\", 0)",					QObject::tr("Request a download (name, hash, size in bytes); replace the example size"));
     addFunctionToLuaAndTw(top, namespc, files, file_getDownloadDirectory, "getDownloadDirectory()", QObject::tr("get download folder path"));
     addFunctionToLuaAndTw(top, namespc, files, file_getPartialsDirectory, "getPartialsDirectory()", QObject::tr("get partial folder path"));
-    addFunctionToLuaAndTw(top, namespc, files, file_turtleSearch, "turtleSearch()",					QObject::tr("starts a search for given keywords"));
-    addFunctionToLuaAndTw(top, namespc, files, file_setDownloadDirectory, "setDownloadDirectory()", QObject::tr("set download folder path (params: path)"));
-    addFunctionToLuaAndTw(top, namespc, files, file_setPartialsDirectory, "setPartialsDirectory()", QObject::tr("set partial folder path (params: path)"));
+    addFunctionToLuaAndTw(top, namespc, files, file_turtleSearch, "turtleSearch(\"search words\")",					QObject::tr("starts a search for given keywords"));
+    addFunctionToLuaAndTw(top, namespc, files, file_setDownloadDirectory, "setDownloadDirectory(\"PATH\")", QObject::tr("set download folder path (params: path)"));
+    addFunctionToLuaAndTw(top, namespc, files, file_setPartialsDirectory, "setPartialsDirectory(\"PATH\")", QObject::tr("set partial folder path (params: path)"));
 
     lua_setglobal(L, "files");
 }

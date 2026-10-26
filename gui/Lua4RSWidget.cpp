@@ -1,7 +1,9 @@
 #include "Lua4RSWidget.h"
+#include "FunctionBrowser.h"
 #include "ui_Lua4RSWidget.h"
 #include "Lua/LuaCore.h"
 #include "Lua/LuaList.h"
+#include "Lua/BundledScripts.h"
 #include "interface/L4RInterface.h"
 
 #include <QDesktopServices>
@@ -12,6 +14,9 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QMenu>
+#include <QPainter>
+#include <QPixmap>
+#include <QIcon>
 #include <QMessageBox>
 #include <QNetworkAccessManager>
 #include <QNetworkReply>
@@ -65,6 +70,17 @@ Lua4RSWidget::Lua4RSWidget(QWidget* parent) :
         createScript("-- Click Run or press F5.\nprint(\"Hello from Lua4RS!\")\n", tr("My first Lua script"));
     });
     examples->addAction(tr("List friends with the JSON API"), this, &Lua4RSWidget::newApiExample);
+    auto bundled = examples->addMenu(tr("Bundled scripts"));
+    for(const QString& name : BundledScripts::names())
+        bundled->addAction(name, this, [this, name]() {
+            QFile source(":/lua4rs/examples/" + name);
+            if(!source.open(QIODevice::ReadOnly))
+            {
+                QMessageBox::warning(this, tr("Example unavailable"), source.errorString());
+                return;
+            }
+            createScript(QString::fromUtf8(source.readAll()), tr("Example: %1").arg(name));
+        });
     ui->pb_example->setMenu(examples);
 
     connect(ui->le_scriptname, &QLineEdit::textChanged, this, &Lua4RSWidget::markDirty);
@@ -131,7 +147,26 @@ void Lua4RSWidget::refreshScripts()
         name->setToolTip(container->getDesc() + "\n" + container->getTriggerNames() + "\n" +
                          tr("Last run: %1").arg(container->getLastTriggered().isValid() ? container->getLastTriggered().toString() : tr("Never")));
         ui->tw_allscripts->setItem(row, 0, name);
-        ui->tw_allscripts->setItem(row, 1, new QTableWidgetItem(container->getEnabled() ? tr("On") : tr("Off")));
+        const bool enabled = container->getEnabled();
+        auto status = new QTableWidgetItem(enabled ? tr("On") : tr("Off"));
+        const qreal ratio = ui->tw_allscripts->devicePixelRatioF();
+        QPixmap dot(qRound(16 * ratio), qRound(16 * ratio));
+        dot.setDevicePixelRatio(ratio);
+        dot.fill(Qt::transparent);
+        {
+            QPainter painter(&dot);
+            painter.setRenderHint(QPainter::Antialiasing);
+            painter.setPen(Qt::NoPen);
+            painter.setBrush(enabled ? QColor("#218b46") : QColor("#808080"));
+            painter.drawEllipse(QRectF(3, 3, 10, 10));
+        }
+        QIcon icon;
+        // Keep the status colour when the row is selected.
+        icon.addPixmap(dot, QIcon::Normal);
+        icon.addPixmap(dot, QIcon::Selected);
+        status->setIcon(icon);
+        status->setToolTip(enabled ? tr("Automation enabled") : tr("Automation disabled"));
+        ui->tw_allscripts->setItem(row, 1, status);
     }
     ui->tw_allscripts->setSortingEnabled(true);
     filterScripts(ui->le_scriptfilter->text());
@@ -176,7 +211,7 @@ void Lua4RSWidget::loadScript(LuaContainer* container)
     _dirty = false;
     _loading = false;
     ui->editorTabs->setCurrentWidget(ui->codeTab);
-    ui->runStatus->setText(container ? tr("Ready — F5 runs the code shown above.") : tr("Choose New or Example to get started."));
+    ui->runStatus->setText(container ? tr("Ready — F5 runs the code shown above.") : tr("Choose a script. Write Lua. Run and see the result."));
     updateEditorState();
     selectActiveScript();
 }
@@ -345,16 +380,7 @@ void Lua4RSWidget::filterFunctions(const QString& query)
 {
     for(int i = 0; i < ui->tw_hints->topLevelItemCount(); ++i)
     {
-        auto parent = ui->tw_hints->topLevelItem(i);
-        bool visible = parent->text(0).contains(query, Qt::CaseInsensitive);
-        for(int j = 0; j < parent->childCount(); ++j)
-        {
-            auto child = parent->child(j);
-            const bool match = parent->text(0).contains(query, Qt::CaseInsensitive) || child->text(0).contains(query, Qt::CaseInsensitive);
-            child->setHidden(!match); visible |= match;
-        }
-        parent->setHidden(!visible);
-        if(!query.isEmpty() && visible) parent->setExpanded(true);
+        FunctionBrowser::filter(ui->tw_hints->topLevelItem(i), query);
     }
 }
 void Lua4RSWidget::on_pb_pastehint_released()
@@ -364,7 +390,7 @@ void Lua4RSWidget::on_pb_pastehint_released()
 }
 void Lua4RSWidget::on_tw_hints_itemDoubleClicked(QTreeWidgetItem* item, int)
 {
-    if(!_activeContainer || item->text(1).endsWith('.')) return;
+    if(!_activeContainer || !item || item->childCount() || item->text(1).isEmpty()) return;
     ui->editorTabs->setCurrentWidget(ui->codeTab);
     ui->pte_luacode->insertPlainText(item->text(1)); ui->pte_luacode->setFocus();
 }

@@ -36,6 +36,9 @@ win32 {
 }
 
 HEADERS +=  \
+    Lua/BundledScripts.h \
+    gui/FunctionBrowser.h \
+    gui/JsonApiCatalog.h \
     Lua/LuaJsonApi.h \
     Lua4RSPlugin.h \
     Lua4RSNotify.h \

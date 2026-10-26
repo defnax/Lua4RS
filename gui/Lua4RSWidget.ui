@@ -14,40 +14,12 @@
    <string>Lua4RS — Lua scripting</string>
   </property>
   <property name="styleSheet">
-   <string>QLabel#titleLabel { font-size: 22px; font-weight: 600; } QLabel#scriptsLabel { font-weight: 600; } QPushButton { padding: 5px 10px; } QPushButton#pb_run { background-color: palette(highlight); color: palette(highlighted-text); font-weight: 600; }</string>
+   <string>QLabel#scriptsLabel { font-weight: 600; } QPushButton { padding: 5px 10px; } QPushButton#pb_run { background-color: palette(highlight); color: palette(highlighted-text); font-weight: 600; }</string>
   </property>
   <layout class="QVBoxLayout" name="mainLayout">
    <property name="spacing">
     <number>12</number>
    </property>
-   <item>
-    <layout class="QHBoxLayout" name="headingLayout">
-     <item>
-      <widget class="QLabel" name="titleLabel">
-       <property name="text">
-        <string>Lua4RS</string>
-       </property>
-      </widget>
-     </item>
-     <item>
-      <widget class="QLabel" name="subtitleLabel">
-       <property name="text">
-        <string>Choose a script. Write Lua. Run and see the result.</string>
-       </property>
-       <property name="wordWrap">
-        <bool>true</bool>
-       </property>
-      </widget>
-     </item>
-     <item>
-      <widget class="QToolButton" name="helpButton">
-       <property name="text">
-        <string>Help</string>
-       </property>
-      </widget>
-     </item>
-    </layout>
-   </item>
    <item>
     <widget class="QSplitter" name="workspaceSplitter">
      <property name="orientation">
@@ -433,6 +405,11 @@ Your results appear in Output below.</string>
        <layout class="QVBoxLayout" name="outputLayout">
         <item>
          <layout class="QHBoxLayout" name="outputActions">
+          <item>
+           <widget class="QToolButton" name="helpButton">
+            <property name="text"><string>Help</string></property>
+           </widget>
+          </item>
           <item>
            <widget class="QLabel" name="runStatus">
             <property name="text">
