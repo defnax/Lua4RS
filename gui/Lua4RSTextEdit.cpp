@@ -55,9 +55,12 @@ bool Lua4RSTextEdit::eventFilter(QObject* watched, QEvent* event)
 void Lua4RSTextEdit::paintLineNumbers(QPaintEvent* event)
 {
     QPainter painter(_lineNumberArea);
-    painter.fillRect(event->rect(), palette().color(QPalette::AlternateBase));
+    // Stylesheets may set Base/Text but leave AlternateBase at its light default.
+    // Use the editor's matching background/text pair for the gutter as well.
+    const QPalette editorPalette = viewport()->palette();
+    painter.fillRect(event->rect(), editorPalette.color(QPalette::Base));
     painter.setFont(font());
-    painter.setPen(palette().color(QPalette::Text));
+    painter.setPen(editorPalette.color(QPalette::Text));
     QTextBlock block = firstVisibleBlock();
     while(block.isValid())
     {

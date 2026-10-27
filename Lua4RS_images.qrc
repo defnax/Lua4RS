@@ -3,6 +3,10 @@
         <file>images/lua_logo.png</file>
     </qresource>
     <qresource prefix="/lua4rs/examples">
+        <file alias="autoPermissions.lua">scripts/autoPermissions.lua</file>
+        <file alias="resetPermissions.lua">scripts/resetPermissions.lua</file>
+        <file alias="chatWrapper.lua">scripts/chatWrapper.lua</file>
+        <file alias="login.lua">scripts/login.lua</file>
         <file alias="buryTheDead.lua">scripts/buryTheDead.lua</file>
         <file alias="chatBot.lua">scripts/chatBot.lua</file>
         <file alias="chatTest.lua">scripts/chatTest.lua</file>
