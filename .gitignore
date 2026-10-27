@@ -10,6 +10,10 @@
 *.so.*
 *.dll
 *.dylib
+*.exe
+/jsonapi-runner/debug/
+/jsonapi-runner/release/
+/tmp/
 
 # Qt-es
 
@@ -27,3 +31,10 @@ Makefile*
 # QtCreator
 
 *.autosave
+temp/moc/moc_predefs.h
+tests/jsonapi-client.lua
+tests/test_jsonapi.py
+tests/ui-preview.cpp
+tests/ui-preview.pro
+object_script.Lua4RS.Debug
+object_script.Lua4RS.Release

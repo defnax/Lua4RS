@@ -13,7 +13,12 @@ public:
 	~Lua4RSTextEdit() {}
 protected:
     void changeEvent(QEvent* event) override;
+    void resizeEvent(QResizeEvent* event) override;
+    bool eventFilter(QObject* watched, QEvent* event) override;
 private:
+    void updateLineNumberArea();
+    void paintLineNumbers(QPaintEvent* event);
+    QWidget* _lineNumberArea = nullptr;
     QLuaSyntaxHighlighter* _highlighter = nullptr;
 };
 

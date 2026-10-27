@@ -1,6 +1,9 @@
 #include <QVariant>
 #include <QEvent>
 #include <QFontDatabase>
+#include <QPainter>
+#include <QPaintEvent>
+#include <QTextBlock>
 
 #include "Lua4RSTextEdit.h"
 
@@ -8,12 +11,72 @@ Lua4RSTextEdit::Lua4RSTextEdit(QWidget *parent) :
 	QPlainTextEdit(parent)
 {
     setFont(QFontDatabase::systemFont(QFontDatabase::FixedFont));
+    _lineNumberArea = new QWidget(this);
+    _lineNumberArea->setObjectName("lineNumberArea");
+    _lineNumberArea->installEventFilter(this);
+    connect(this, &QPlainTextEdit::blockCountChanged, this, [this]() {
+        updateLineNumberArea();
+    });
+    connect(this, &QPlainTextEdit::updateRequest, this, [this](const QRect& rect, int dy) {
+        if(dy) _lineNumberArea->scroll(0, dy);
+        else _lineNumberArea->update(0, rect.y(), _lineNumberArea->width(), rect.height());
+    });
+    updateLineNumberArea();
     _highlighter = new QLuaSyntaxHighlighter(document(), palette());
+}
+
+void Lua4RSTextEdit::updateLineNumberArea()
+{
+    if(!_lineNumberArea) return;
+    const int digits = QString::number(blockCount()).size();
+    const int width = 12 + digits * fontMetrics().horizontalAdvance(QLatin1Char('9'));
+    setViewportMargins(width, 0, 0, 0);
+    _lineNumberArea->setGeometry(contentsRect().left(), viewport()->geometry().top(),
+                                 width, viewport()->height());
+    _lineNumberArea->update();
+}
+
+void Lua4RSTextEdit::resizeEvent(QResizeEvent* event)
+{
+    QPlainTextEdit::resizeEvent(event);
+    updateLineNumberArea();
+}
+
+bool Lua4RSTextEdit::eventFilter(QObject* watched, QEvent* event)
+{
+    if(watched == _lineNumberArea && event->type() == QEvent::Paint)
+    {
+        paintLineNumbers(static_cast<QPaintEvent*>(event));
+        return true;
+    }
+    return QPlainTextEdit::eventFilter(watched, event);
+}
+
+void Lua4RSTextEdit::paintLineNumbers(QPaintEvent* event)
+{
+    QPainter painter(_lineNumberArea);
+    painter.fillRect(event->rect(), palette().color(QPalette::AlternateBase));
+    painter.setFont(font());
+    painter.setPen(palette().color(QPalette::Text));
+    QTextBlock block = firstVisibleBlock();
+    while(block.isValid())
+    {
+        const qreal top = blockBoundingGeometry(block).translated(contentOffset()).top();
+        if(top > event->rect().bottom()) break;
+        if(block.isVisible() && top + blockBoundingRect(block).height() >= event->rect().top())
+            painter.drawText(0, qRound(top), _lineNumberArea->width() - 6,
+                             fontMetrics().height(), Qt::AlignRight,
+                             QString::number(block.blockNumber() + 1));
+        block = block.next();
+    }
 }
 
 void Lua4RSTextEdit::changeEvent(QEvent* event)
 {
     QPlainTextEdit::changeEvent(event);
+    if(event->type() == QEvent::FontChange || event->type() == QEvent::StyleChange
+       || event->type() == QEvent::PaletteChange)
+        updateLineNumberArea();
     if(event->type() == QEvent::PaletteChange)
     {
         delete _highlighter;
