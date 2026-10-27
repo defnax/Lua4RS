@@ -27,6 +27,32 @@
 #include <QTimer>
 #include <QUrl>
 
+namespace {
+class ScriptTableItem : public QTableWidgetItem
+{
+public:
+    ScriptTableItem(const QString& text, bool enabled, const QString& name)
+        : QTableWidgetItem(text), _enabled(enabled), _name(name) {}
+
+    bool operator<(const QTableWidgetItem& other) const override
+    {
+        const auto& script = static_cast<const ScriptTableItem&>(other);
+        if(_enabled != script._enabled)
+        {
+            // Keep enabled scripts first even when the user reverses the sort.
+            const bool descending = tableWidget() &&
+                tableWidget()->horizontalHeader()->sortIndicatorOrder() == Qt::DescendingOrder;
+            return descending ? !_enabled : _enabled;
+        }
+        return QString::localeAwareCompare(_name, script._name) < 0;
+    }
+
+private:
+    bool _enabled;
+    QString _name;
+};
+}
+
 Lua4RSWidget::Lua4RSWidget(QWidget* parent) :
     MainPage(parent), ui(new Ui::Lua4RSWidget),
     _lua(L4R::L4RConfig->getCore()), _network(new QNetworkAccessManager(this))
@@ -143,12 +169,12 @@ void Lua4RSWidget::refreshScripts()
     {
         const int row = ui->tw_allscripts->rowCount();
         ui->tw_allscripts->insertRow(row);
-        auto name = new QTableWidgetItem(container->getName());
+        const bool enabled = container->getEnabled();
+        auto name = new ScriptTableItem(container->getName(), enabled, container->getName());
         name->setToolTip(container->getDesc() + "\n" + container->getTriggerNames() + "\n" +
                          tr("Last run: %1").arg(container->getLastTriggered().isValid() ? container->getLastTriggered().toString() : tr("Never")));
         ui->tw_allscripts->setItem(row, 0, name);
-        const bool enabled = container->getEnabled();
-        auto status = new QTableWidgetItem(enabled ? tr("On") : tr("Off"));
+        auto status = new ScriptTableItem(enabled ? tr("On") : tr("Off"), enabled, container->getName());
         const qreal ratio = ui->tw_allscripts->devicePixelRatioF();
         QPixmap dot(qRound(16 * ratio), qRound(16 * ratio));
         dot.setDevicePixelRatio(ratio);
