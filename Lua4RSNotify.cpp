@@ -267,7 +267,6 @@ void Lua4RSNotify::notifyDownloadComplete           (const std::string& fileHash
 
 void Lua4RSNotify::notifyTurtleSearchResult         (uint32_t search_id, const std::vector<TurtleFileInfoV2>& files)
 {
-    LuaEventList lel;
     for (const TurtleFileInfoV2& file : files) {
         struct LuaEvent *e = new LuaEvent();
 
@@ -278,8 +277,7 @@ void Lua4RSNotify::notifyTurtleSearchResult         (uint32_t search_id, const s
         e->dataParm->setValue("strname", QString::fromUtf8(file.fName.c_str()));
         e->dataParm->setValue("u64size", quint64(file.fSize));
 
-        lel.push_back(e);
+        L4R::L4RConfig->getCore()->processEvent(e);
     }
 
-    L4R::L4RConfig->getCore()->processEvent(lel);
 }

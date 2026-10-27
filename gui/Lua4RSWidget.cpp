@@ -58,6 +58,11 @@ Lua4RSWidget::Lua4RSWidget(QWidget* parent) :
     _lua(L4R::L4RConfig->getCore()), _network(new QNetworkAccessManager(this))
 {
     ui->setupUi(this);
+    connect(_lua, &LuaCore::manualRunFinished, this, [this](bool success) {
+        _running = false;
+        ui->runStatus->setText(success ? tr("Finished. Results appear in Output.") : tr("Script failed - see Output."));
+        updateEditorState();
+    }, Qt::QueuedConnection);
     ui->workspaceSplitter->setSizes({210, 720, 290});
     ui->editorSplitter->setSizes({500, 190});
     ui->workspaceSplitter->setStretchFactor(1, 1);
@@ -141,6 +146,7 @@ Lua4RSWidget::Lua4RSWidget(QWidget* parent) :
 
 Lua4RSWidget::~Lua4RSWidget()
 {
+    _lua->setUi(nullptr);
     if(_draft) delete _activeContainer;
     delete ui;
 }
@@ -162,6 +168,7 @@ void Lua4RSWidget::appendLog(const QString& s)
 
 void Lua4RSWidget::refreshScripts()
 {
+    std::lock_guard<std::recursive_mutex> scriptsLock(_lua->scriptsMutex());
     const QSignalBlocker blocker(ui->tw_allscripts);
     ui->tw_allscripts->setSortingEnabled(false);
     ui->tw_allscripts->setRowCount(0);
@@ -212,6 +219,7 @@ void Lua4RSWidget::selectActiveScript()
 
 void Lua4RSWidget::loadScript(LuaContainer* container)
 {
+    std::lock_guard<std::recursive_mutex> scriptsLock(_lua->scriptsMutex());
     _loading = true;
     _activeContainer = container;
     ui->le_scriptname->setText(container ? container->getName() : QString());
@@ -319,6 +327,7 @@ bool Lua4RSWidget::saveScript()
     const quint64 units[] = {1, 60, 3600, 86400, 604800};
     if(quint64(ui->spb_everycount->value()) * units[ui->dd_everyunits->currentIndex()] > 0xffffffffULL)
     { QMessageBox::warning(this, tr("Check the interval"), tr("Choose a shorter repeat interval.")); return false; }
+    std::unique_lock<std::recursive_mutex> scriptsLock(_lua->scriptsMutex());
     const QString oldName = _activeContainer->getName();
     _activeContainer->setName(name);
     _activeContainer->setDesc(ui->le_scriptdesc->text());
@@ -336,7 +345,9 @@ bool Lua4RSWidget::saveScript()
     if(_draft) { _lua->codeList()->addItem(_activeContainer); _draft = false; }
     else if(oldName != name) _lua->codeList()->rename(oldName, name);
     QDir().mkpath(QString::fromStdString(_lua->getPath()));
-    if(!_lua->codeList()->saveAll())
+    const bool saved = _lua->codeList()->saveAll();
+    scriptsLock.unlock();
+    if(!saved)
     { QMessageBox::warning(this, tr("Could not save"), tr("The script could not be fully saved. Check write access to the scripts folder and try again.")); return false; }
     _dirty = false;
     { const QSignalBlocker blocker(ui->le_scriptname); ui->le_scriptname->setText(name); }
@@ -350,6 +361,7 @@ void Lua4RSWidget::on_pb_save_clicked() { saveScript(); }
 void Lua4RSWidget::on_pb_load_clicked()
 {
     if(!maybeSave()) return;
+    std::lock_guard<std::recursive_mutex> scriptsLock(_lua->scriptsMutex());
     const QString name = _activeContainer ? _activeContainer->getName() : QString();
     _activeContainer = nullptr;
     _lua->codeList()->loadAll();
@@ -371,9 +383,12 @@ void Lua4RSWidget::on_pb_deletescript_clicked()
     if(!_activeContainer || _draft) return;
     if(QMessageBox::question(this, tr("Delete script"), tr("Delete %1 from disk? This also discards any editor changes.").arg(_activeContainer->getName()),
        QMessageBox::Yes | QMessageBox::Cancel, QMessageBox::Cancel) != QMessageBox::Yes) return;
+    std::unique_lock<std::recursive_mutex> scriptsLock(_lua->scriptsMutex());
     auto removed = _activeContainer;
     loadScript(nullptr);
-    if(!_lua->codeList()->removeItemAndDelete(removed))
+    const bool deleted = _lua->codeList()->removeItemAndDelete(removed);
+    scriptsLock.unlock();
+    if(!deleted)
         QMessageBox::warning(this, tr("Could not delete file"), tr("The script was removed from this list, but its file could not be deleted. Check the scripts folder."));
     refreshScripts();
 }
@@ -384,9 +399,12 @@ void Lua4RSWidget::on_pb_run_clicked()
     ui->outputTabs->setCurrentWidget(ui->outputTab);
     ui->runStatus->setText(tr("Running…"));
     appendLog(tr("Run: %1").arg(ui->le_scriptname->text()));
-    const bool success = _lua->runLuaByString(ui->pte_luacode->toPlainText());
-    ui->runStatus->setText(success ? tr("Finished. Results appear in Output.") : tr("Script failed — see Output."));
-    _running = false; updateEditorState();
+    if(!_lua->queueManualRun(ui->pte_luacode->toPlainText()))
+    {
+        _running = false;
+        ui->runStatus->setText(tr("Cannot run: Lua is busy or shutting down."));
+        updateEditorState();
+    }
 }
 void Lua4RSWidget::newApiExample()
 {

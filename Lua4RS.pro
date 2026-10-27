@@ -36,6 +36,7 @@ win32 {
 }
 
 HEADERS +=  \
+    Lua/LuaExecutionGuard.h \
     Lua/BundledScripts.h \
     gui/FunctionBrowser.h \
     gui/JsonApiCatalog.h \

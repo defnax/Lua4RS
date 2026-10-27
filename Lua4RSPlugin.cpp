@@ -63,9 +63,10 @@ Lua4RSPlugin::Lua4RSPlugin()
 
 void Lua4RSPlugin::stop()
 {
-    L4R::L4RConfig->getCore()->notify()->stop();
-    L4R::L4RConfig->getCore()->shutDown();
+    if(!_service) return;
+    _service->getCore()->requestStop();
     _service->fullstop();
+    _service->getCore()->shutDown();
 }
 
 p3Config *Lua4RSPlugin::p3_config() const

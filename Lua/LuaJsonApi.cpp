@@ -1,4 +1,5 @@
 #include "LuaJsonApi.h"
+#include "LuaExecutionGuard.h"
 
 #include <QEventLoop>
 #include <QJsonArray>
@@ -297,6 +298,8 @@ int call(lua_State* L)
     const QByteArray body = serialize(payload);
     QByteArray response;
     int status = 0;
+    timeout = LuaExecutionGuard::remainingMilliseconds(timeout);
+    const auto cancel = LuaExecutionGuard::cancellationFlag();
     // A private event loop keeps synchronous Lua calls from re-entering the GUI.
     std::thread worker([&]() {
         QNetworkAccessManager manager;
@@ -304,6 +307,14 @@ int call(lua_State* L)
         QEventLoop loop;
         QTimer timer;
         timer.setSingleShot(true);
+        QTimer cancellationTimer;
+        if(cancel)
+        {
+            QObject::connect(&cancellationTimer, &QTimer::timeout, [&]() {
+                if(cancel->load()) { error = "JSON API request cancelled"; reply->abort(); }
+            });
+            cancellationTimer.start(50);
+        }
         QObject::connect(&timer, &QTimer::timeout, [&]() { error = "JSON API request timed out"; reply->abort(); });
         QObject::connect(reply, &QNetworkReply::readyRead, [&]() {
             response += reply->readAll();

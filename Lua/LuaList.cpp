@@ -184,7 +184,7 @@ size_t LuaList::size()
 
 bool LuaListCompare(LuaContainer* a, LuaContainer* b)
 {
-    return a->getName().compare(b->getName(), Qt::CaseInsensitive);
+    return a->getName().compare(b->getName(), Qt::CaseInsensitive) < 0;
 }
 
 void LuaList::sort()
@@ -283,7 +283,10 @@ bool LuaList::loadAll()
         if(load((*it), c))
             _luaList.push_back(c);
         else
+        {
+            delete c;
             std::cerr << "[Lua] can't load file " << it->toStdString() << std::endl;
+        }
     }
     if(_luaList.empty())
         return false;

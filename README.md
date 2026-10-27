@@ -37,3 +37,26 @@ put/clone `Lua4RS` to `RetroShare/plugins/` recommend
 	make 
 
 Then place libLua4RS.so/Lua4RS.dll in your extension folder.
+
+## Execution and resource limits
+
+Manual runs execute on the plugin worker so the editor stays responsive.
+Each plugin script has a five-second cooperative Lua execution deadline.
+JSON API requests respect the remaining deadline and shutdown cancellation.
+Native functions outside the JSON API may still block; this is not a sandbox
+for untrusted scripts, and Lua hooks are not a hard process-level timeout.
+The standalone JSON API runner keeps its existing execution behavior.
+
+The event queue holds at most 1,024 events and approximately 8 MiB of parameter
+data. New arrivals are dropped when either limit is reached. Output is limited
+to 200 messages and 65,536 characters per second across runs; excess output is
+discarded. Invalid saved timer schedules are inactive, and the service tick
+interval is always at least one second.
+
+Scripts selected for an event are copied under a lock before execution. Saving
+or deleting a script affects later events; an already selected copy may finish.
+Shutdown cancels the active run and joins the worker before running shutdown
+handlers and releasing the Lua state. Each shutdown handler has the same
+execution deadline.
+
+See [tests/README.md](tests/README.md) for the safety regression checks.

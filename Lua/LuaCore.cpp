@@ -9,6 +9,10 @@
 #include "LuaCore.h"
 #include "LuaList.h"
 #include "LuaJsonApi.h"
+#include "LuaExecutionGuard.h"
+#include <memory>
+#include <stdexcept>
+#include <vector>
 #include "BundledScripts.h"
 #include "gui/Lua4RSWidget.h"
 #include "gui/FunctionBrowser.h"
@@ -47,15 +51,14 @@ LuaCore::LuaCore() :
     _mutexRunLua("Lua4RS Lua"),
     _luaList    (new LuaList()),
     _notify     (new Lua4RSNotify()),
-    _ui         (nullptr),
-    _processingEvent(false),
-    _shutDownImminent (false)
+    _ui         (nullptr)
 {
     /*
      * Notes:
      *  - RS functions get registered to Lua when GUI is initialized
      */
     L = luaL_newstate();
+    if(!L) throw std::runtime_error("Cannot allocate Lua state");
     luaL_openlibs(L);
     registerLuaJsonApi(L);
     lua_pushlightuserdata(L, this);
@@ -77,35 +80,44 @@ LuaCore::LuaCore() :
 
 LuaCore::~LuaCore()
 {
-}
-
-void LuaCore::shutDown()
-{
-    _notify->stop();
-    // disbale output - gui might be gone by now!
-    if(_ui) _ui->disableOutput();
-    _shutDownImminent = true;
-
-    // send shotdown event
-    {
-        struct LuaEvent *e = new LuaEvent();
-        e->eventId = L4R_SHUTDOWN;
-        e->timeStamp = QDateTime::currentDateTime();
-
-        processEvent(e);
-    }
-
-    // save lua scripts
-    if(_luaList->saveAll())
-        std::cout << "[Lua] saved " << _luaList->size() << " Lua script(s)" << std::endl;
-    else
-        std::cout << "[Lua] error occured while saving Lua scripts" << std::endl;
-
-    // close lua (after threads is stopped)
-    lua_close(L);
-
+    shutDown();
     delete _notify;
     delete _luaList;
+}
+
+void LuaCore::requestStop()
+{
+    _shutDownImminent = true;
+    _cancel = true;
+    _notify->stop();
+}
+
+// Caller must stop/join the service thread before entering this function.
+void LuaCore::shutDown()
+{
+    if(!L) return;
+    requestStop();
+    {
+        RsStackMutex lock(_mutex);
+        _events.clear();
+        _manualCode.clear();
+        _manualPending = false;
+    }
+    _cancel = false; // Give shutdown handlers the same bounded execution budget.
+    LuaEvent event;
+    event.eventId = L4R_SHUTDOWN;
+    event.timeStamp = QDateTime::currentDateTime();
+    if(_ready) dispatchEvent(event);
+    _cancel = true;
+    {
+        std::lock_guard<std::recursive_mutex> lock(_scriptsMutex);
+        if(!_luaList->saveAll())
+            std::cerr << "[Lua] Could not save all scripts during shutdown" << std::endl;
+    }
+    RsStackMutex lock(_mutexRunLua);
+    lua_close(L);
+    L = nullptr;
+    // Keep containers alive until destruction: the GUI may still refer to them.
 }
 
 void LuaCore::setupRsFunctionsAndTw(QTreeWidget* tw)
@@ -125,7 +137,7 @@ void LuaCore::setupRsFunctionsAndTw(QTreeWidget* tw)
     tw->setColumnWidth(1,0);
 
     // we need to mess around with lua
-    RsStackMutex mtx(_mutex);   /******* LOCKED MUTEX *****/
+    RsStackMutex mtx(_mutexRunLua);   /******* LOCKED MUTEX *****/
 
     FunctionBrowser::addJsonEndpoints(tw);
     QTreeWidgetItem* json = new QTreeWidgetItem(tw);
@@ -275,95 +287,100 @@ void LuaCore::addFunctionToLuaAndTw(int tableTop, const std::string& namespc, QT
 
 void LuaCore::processEvent(LuaEvent *e)
 {
+    std::unique_ptr<LuaEvent> event(e);
+    if(!event) return;
+    RsStackMutex lock(_mutex);
+    // Drop new arrivals when overloaded. Ownership is released on every path.
+    if(!_shutDownImminent) _events.push(std::move(event));
+}
+
+void LuaCore::processEvent(LuaEventList &events)
+{
+    while(!events.empty())
     {
-        RsStackMutex mtx(_mutex);
-        _eventList.push_back(e);
+        auto event = events.front();
+        events.pop_front();
+        processEvent(event);
     }
 }
 
-void LuaCore::processEvent(LuaEventList &lel) {
-    {
-        RsStackMutex mtx(_mutex);
-        _eventList.insert(_eventList.end(), lel.begin(), lel.end());
-    }
+bool LuaCore::queueManualRun(const QString& code)
+{
+    RsStackMutex lock(_mutex);
+    if(_shutDownImminent || _manualPending || !_ready) return false;
+    _manualCode = code;
+    _manualPending = true;
+    return true;
 }
 
 bool LuaCore::processEventQueue()
 {
-    if (_eventList.empty())
-        return false;
-
-    // to catch to early events
-    if(_ui == NULL)
+    std::unique_ptr<LuaEvent> event;
+    QString manualCode;
+    bool manual = false;
     {
-        std::cerr << "[Lua] LuaCore not ready" << std::endl;
-        return false;
-    }
-
-    struct LuaEvent *e;
-    {
-        RsStackMutex mtx(_mutex);
-        e = _eventList.front();
-        _eventList.pop_front();
-    }
-
-    // block everythign except onShutdown when RS is exiting
-    if(_shutDownImminent && e->eventId != L4R_SHUTDOWN)
-        // event is already removed from list and thus dropped completly
-        return false;
-
-    // exit when we are already executing code for a previous event
-    if(_processingEvent) {
-        // add event again for later processing
-        // this case should not happen since there is only one thread executing events
+        RsStackMutex lock(_mutex);
+        if(_shutDownImminent || !_ready) return false;
+        if(_manualPending)
         {
-            RsStackMutex mtx(_mutex);
-            _eventList.push_front(e);
+            manual = true;
+            manualCode.swap(_manualCode);
+            _manualPending = false;
         }
-        return false;
+        else if(_events.size())
+        {
+            event = _events.pop();
+        }
+        else return false;
     }
-    _processingEvent = true;
-
-    // do some magic here
-    // std::cout << "[Lua] processing event : " << e.eventId  << std::endl;
-    for(LuaContainerList::const_iterator it = _luaList->begin(); it != _luaList->end(); ++it)
-    {
-        if((*it)->isTriggered(*e))
-            runLuaByEvent((*it), *e);
-    }
-    _processingEvent = false;
-
-    delete e;
-    e = NULL;
-
+    if(manual) emit manualRunFinished(runLuaByString(manualCode));
+    else dispatchEvent(*event);
     return true;
 }
 
-// invoke lua
+void LuaCore::dispatchEvent(const LuaEvent& event)
+{
+    // Snapshot under the same lock used by the editor; never retain raw script
+    // pointers while Lua runs or while the user can save/delete a script.
+    std::vector<std::pair<QString, QString>> scripts;
+    {
+        std::lock_guard<std::recursive_mutex> lock(_scriptsMutex);
+        for(auto container : *_luaList)
+            if(container->isTriggered(event))
+                scripts.emplace_back(container->getName(), container->getCode());
+    }
+    for(const auto& script : scripts)
+    {
+        if(_cancel) break;
+        emit appendLog(QObject::tr("running (by event): ") + script.first);
+        runLuaByEvent(script.second, event);
+    }
+}
+
+bool LuaCore::executeLocked(const QString& code)
+{
+    if(!L || !_ready || _cancel) return false;
+    const QByteArray bytes = code.toUtf8();
+    LuaExecutionGuard guard(L, _cancel);
+    int result = luaL_loadbuffer(L, bytes.constData(), bytes.size(), "script");
+    if(result == LUA_OK) result = lua_pcall(L, 0, 0, 0);
+    reportLuaErrors(L, result);
+    return result == LUA_OK;
+}
+
 bool LuaCore::runLuaByString(const QString& code)
 {
-    if(_ui == NULL)
-    {
-        std::cerr << "[Lua] runLuaByString: ERROR: _ui is NULL -> aborting Lua execution" << std::endl;
-        return false;
-    }
-
-    const QByteArray code2 = code.toUtf8();
-
-    // Since the executed Lua code might trigger a RS event which then leads to an event within Lua4RS we can end in a dead lock.
-    // Adding the new event within Lua4RS will try to lock the mutex - which is impossible since we are holding it here already.
-    // --> use separared mutex for executing Lua
-    RsStackMutex mtx(_mutexRunLua);   /******* LOCKED MUTEX *****/
-    int ret = luaL_loadbuffer(L, code2.constData(), code2.size(), "editor");
-    if(ret == LUA_OK) ret = lua_pcall(L, 0, 0, 0);
-    reportLuaErrors(L, ret);
-    return ret == LUA_OK;
+    RsStackMutex lock(_mutexRunLua);
+    return executeLocked(code);
 }
 
 bool LuaCore::configureJsonApi(const QString& url, const QString& username,
                              const QString& password, QString& error)
 {
-    RsStackMutex lock(_mutexRunLua);
+    if(!_mutexRunLua.trylock()) { error = "A script is running. Try again when it finishes."; return false; }
+    std::lock_guard<RsMutex> lock(_mutexRunLua, std::adopt_lock);
+    if(!L || _shutDownImminent) { error = "Lua is shutting down"; return false; }
+    LuaExecutionGuard guard(L, _cancel);
     const int top = lua_gettop(L);
     lua_getglobal(L, "jsonapi");
     if(!lua_istable(L, -1))
@@ -385,15 +402,14 @@ bool LuaCore::configureJsonApi(const QString& url, const QString& username,
 
 void LuaCore::runLuaByName(const QString& name)
 {
-    // get code
-    LuaContainer* lc = NULL;
-    if(!_luaList->itemByName(name, lc))
+    QString code;
     {
-        std::cerr << "[Lua] can't find script " << name.toStdString() << std::endl;
-        return;
+        std::lock_guard<std::recursive_mutex> lock(_scriptsMutex);
+        LuaContainer* container = nullptr;
+        if(!_luaList->itemByName(name, container)) return;
+        code = container->getCode();
     }
-
-    runLuaByString(lc->getCode());
+    runLuaByString(code);
 }
 
 void addSettingsEntryToLua(lua_State *L, int top, const QString &type, const QVariant& value, const QString &name)
@@ -472,32 +488,21 @@ void addSettingsToLua(lua_State  *L, int top, LuaEventParameters *settings, int8
     }
 }
 
-void LuaCore::runLuaByEvent(LuaContainer* container, const LuaEvent& event)
+void LuaCore::runLuaByEvent(const QString& code, const LuaEvent& event)
 {
-    {
-	RsStackMutex mtx(_mutexRunLua);   /******* LOCKED MUTEX *****/
-
-        // clear old parameter
-        luaL_dostring(L, "args = nil");
-
-        // set parameter
-        lua_newtable(L);
-        int top = lua_gettop(L);
-
-        addSettingsToLua(L, top, event.dataParm, 0);
-
-        lua_setglobal(L, "args");
-
-    }
-    emit appendLog(QObject::tr("running (by event): ") + container->getName());
-    runLuaByString(container->getCode());
+    RsStackMutex lock(_mutexRunLua);
+    if(!L || _cancel) return;
+    lua_newtable(L);
+    addSettingsToLua(L, lua_gettop(L), event.dataParm, 0);
+    lua_setglobal(L, "args");
+    executeLocked(code);
 }
 
 void LuaCore::reportLuaErrors(lua_State *L, int status)
 {
     std::string s;
     if ( status!=0 ) {
-        s = lua_tostring(L, -1);
+        s = LuaExecutionGuard::errorText(L);
         std::cerr << "-- " << s << std::endl;
 
         s = "Lua error: " + s;
@@ -525,7 +530,10 @@ std::string LuaCore::getPath() const
 
 void LuaCore::setUi(Lua4RSWidget *ui)
 {
+    if(_ui) QObject::disconnect(this, nullptr, _ui, nullptr);
     _ui = ui;
+    if(ui) _ready = true;
+    if(!ui) return;
 
     QObject::connect(this, SIGNAL(appendLog(QString)), _ui, SLOT(appendLog(QString)));
     QObject::connect(this, SIGNAL(appendOutput(QString)), _ui, SLOT(appendOutput(QString)));
@@ -541,5 +549,20 @@ Lua4RSWidget* LuaCore::getUI()
 }
 
 // emit
-void LuaCore::emitAppendOutput(const QString &s)    { emit appendOutput(s); }
+void LuaCore::emitAppendOutput(const QString &s)
+{
+    // Rate-limit signals across runs, not just document size after delivery.
+    const auto now = std::chrono::steady_clock::now();
+    if(now - _outputWindow >= std::chrono::seconds(1))
+    {
+        _outputWindow = now;
+        _outputRemaining = 64 * 1024;
+        _outputMessages = 200;
+    }
+    if(!_outputRemaining || !_outputMessages) return;
+    --_outputMessages;
+    const int length = qMin<int>(s.size(), static_cast<int>(_outputRemaining));
+    _outputRemaining -= qMin<size_t>(_outputRemaining, size_t(length) + 1);
+    emit appendOutput(s.left(length));
+}
 void LuaCore::emitClearOutput()                     { emit clearOutput(); }
