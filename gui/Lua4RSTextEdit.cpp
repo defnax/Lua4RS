@@ -107,7 +107,7 @@ QLuaSyntaxHighlighter::QLuaSyntaxHighlighter(QTextDocument *document, const QPal
 					<< "\\brepeat\\b"	<< "\\breturn\\b";
 
 	foreach (const QString &pattern, keywordPatterns) {
-		rule.pattern = QRegExp(pattern);
+		rule.pattern = QRegularExpression(pattern);
 		rule.format = keywordFormat;
 		_highlightingRules.append(rule);
 	}
@@ -127,7 +127,7 @@ QLuaSyntaxHighlighter::QLuaSyntaxHighlighter(QTextDocument *document, const QPal
 					 << "\\#";
 
 	foreach (const QString &pattern, operatorPatterns) {
-		rule.pattern = QRegExp(pattern);
+		rule.pattern = QRegularExpression(pattern);
 		rule.format = operatorFormat;
 		_highlightingRules.append(rule);
 	}
@@ -135,33 +135,33 @@ QLuaSyntaxHighlighter::QLuaSyntaxHighlighter(QTextDocument *document, const QPal
 	// numbers
 	QTextCharFormat numberFormat;
 	numberFormat.setForeground(dark ? QColor("#d8b4fe") : QColor("#7e22ce"));
-	rule.pattern = QRegExp("[0-9]+");
+	rule.pattern = QRegularExpression("[0-9]+");
 	rule.format = numberFormat;
 	_highlightingRules.append(rule);
 
 	// functions
 	QTextCharFormat functionFormat;
 	functionFormat.setForeground(dark ? QColor("#67e8f9") : QColor("#0369a1"));
-	rule.pattern = QRegExp("\\b[A-Za-z0-9_]+(?=\\()");
+	rule.pattern = QRegularExpression("\\b[A-Za-z0-9_]+(?=\\()");
 	rule.format = functionFormat;
 	_highlightingRules.append(rule);
 
 	// namespaces
 	QTextCharFormat namespaceFormat;
 	namespaceFormat.setForeground(dark ? QColor("#c4b5fd") : QColor("#6d28d9"));
-	rule.pattern = QRegExp("\\b(?=(.*[a-z]))[A-Za-z0-9_]+(?=\\.)");
+	rule.pattern = QRegularExpression("\\b(?=(.*[a-z]))[A-Za-z0-9_]+(?=\\.)");
 	rule.format = namespaceFormat;
 	_highlightingRules.append(rule);
 
 	// quotations - add at the end! (but before comments)
 	QTextCharFormat quotationFormat;
 	quotationFormat.setForeground(dark ? QColor("#fcd34d") : QColor("#854d0e"));
-	rule.pattern = QRegExp("\".*\"");
-	rule.pattern.setMinimal(true);
+	rule.pattern = QRegularExpression("\".*\"");
+	rule.pattern.setPatternOptions(QRegularExpression::InvertedGreedinessOption);
 	rule.format = quotationFormat;
 	_highlightingRules.append(rule);
-	rule.pattern = QRegExp("'.*'");
-	rule.pattern.setMinimal(true);
+	rule.pattern = QRegularExpression("'.*'");
+	rule.pattern.setPatternOptions(QRegularExpression::InvertedGreedinessOption);
 	rule.format = quotationFormat;
 	_highlightingRules.append(rule);
 
@@ -169,13 +169,13 @@ QLuaSyntaxHighlighter::QLuaSyntaxHighlighter(QTextDocument *document, const QPal
 	// single line
 	QTextCharFormat singleLineCommentFormat;
 	singleLineCommentFormat.setForeground(dark ? QColor("#86efac") : QColor("#166534"));
-	rule.pattern = QRegExp("--[^\n]*");
+	rule.pattern = QRegularExpression("--[^\n]*");
 	rule.format = singleLineCommentFormat;
 	_highlightingRules.append(rule);
 
 	// multi lines
-	_commentStartExpression = QRegExp("--\\[\\[");
-	_commentEndExpression = QRegExp("\\]\\]");
+	_commentStartExpression = QRegularExpression("--\\[\\[");
+	_commentEndExpression = QRegularExpression("\\]\\]");
 	_multiLineCommentFormat.setForeground(dark ? QColor("#86efac") : QColor("#166534"));
 	_multiLineCommentFormat.setFontItalic(true);
 
@@ -184,31 +184,30 @@ QLuaSyntaxHighlighter::QLuaSyntaxHighlighter(QTextDocument *document, const QPal
 void QLuaSyntaxHighlighter::highlightBlock(const QString &text)
 {
 	foreach (const HighlightingRule &rule, _highlightingRules) {
-		QRegExp expression(rule.pattern);
-		int index = expression.indexIn(text);
-		while (index >= 0) {
-			int length = expression.matchedLength();
-			setFormat(index, length, rule.format);
-			index = expression.indexIn(text, index + length);
+		auto matches = rule.pattern.globalMatch(text);
+		while (matches.hasNext()) {
+			const auto match = matches.next();
+			setFormat(match.capturedStart(), match.capturedLength(), rule.format);
 		}
 	}
 	setCurrentBlockState(0);
 
 	int startIndex = 0;
 	if (previousBlockState() != 1)
-		startIndex = _commentStartExpression.indexIn(text);
+		startIndex = _commentStartExpression.match(text).capturedStart();
 
 	while (startIndex >= 0) {
-		int endIndex = _commentEndExpression.indexIn(text, startIndex);
+		const auto endMatch = _commentEndExpression.match(text, startIndex);
+		int endIndex = endMatch.capturedStart();
 		int commentLength;
 		if (endIndex == -1) {
 			setCurrentBlockState(1);
 			commentLength = text.length() - startIndex;
 		} else {
 			commentLength = endIndex - startIndex
-					+ _commentEndExpression.matchedLength();
+					+ endMatch.capturedLength();
 		}
 		setFormat(startIndex, commentLength, _multiLineCommentFormat);
-		startIndex = _commentStartExpression.indexIn(text, startIndex + commentLength);
+		startIndex = _commentStartExpression.match(text, startIndex + commentLength).capturedStart();
 	}
 }

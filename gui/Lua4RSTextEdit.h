@@ -24,7 +24,7 @@ private:
 
 #include <QSyntaxHighlighter>
 #include <QTextCharFormat>
-#include <QRegExp>
+#include <QRegularExpression>
 #include <QVector>
 
 class QLuaSyntaxHighlighter : public QSyntaxHighlighter
@@ -39,13 +39,13 @@ protected:
 
 	struct HighlightingRule
 	{
-		QRegExp pattern;
+		QRegularExpression pattern;
 		QTextCharFormat format;
 	};
 	QVector<HighlightingRule> _highlightingRules;
 
-	QRegExp _commentStartExpression;
-	QRegExp _commentEndExpression;
+	QRegularExpression _commentStartExpression;
+	QRegularExpression _commentEndExpression;
 	QTextCharFormat _multiLineCommentFormat;
 	HighlightingRule _singleLineComment;
 };
