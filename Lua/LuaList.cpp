@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <fstream>
 #include <stdexcept>
 #include <iostream>
@@ -105,7 +106,7 @@ LuaContainer* LuaList::createItem()
     }
 
     // very important
-    qSort(usedNr);
+    std::sort(usedNr.begin(), usedNr.end());
 
     if(usedNr.empty())
         // easy!
