@@ -5,6 +5,7 @@
     <qresource prefix="/lua4rs/examples">
         <file alias="autoPermissions.lua">scripts/autoPermissions.lua</file>
         <file alias="resetPermissions.lua">scripts/resetPermissions.lua</file>
+        <file alias="servicePermission.lua">scripts/servicePermission.lua</file>
         <file alias="chatWrapper.lua">scripts/chatWrapper.lua</file>
         <file alias="login.lua">scripts/login.lua</file>
         <file alias="buryTheDead.lua">scripts/buryTheDead.lua</file>
